@@ -250,7 +250,10 @@ def token_required(f):
 
         token = None
         if 'Authorization' in request.headers:
-            token = request.headers['Authorization'].split(" ")[1]
+            try:
+                token = request.headers['Authorization'].split(" ")[1]
+            except IndexError:
+                return jsonify({'error': 'Token format invalid'}), 401
         
         if not token: return jsonify({'error': 'Token missing'}), 401
         try:
