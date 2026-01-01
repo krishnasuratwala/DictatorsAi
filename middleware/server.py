@@ -47,8 +47,60 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 MAX_WORKERS = 20 
 request_queue = queue.PriorityQueue()
 active_requests_sem = threading.Semaphore(MAX_WORKERS)
+request_events = {} # Map req_id -> threading.Event()
 
-# --- FILEBASE S3 CONFIG ---
+# ... (omitted)
+
+# --- REPLACED DISPATCHER ---
+def dispatcher():
+    """
+    Background thread that moves users from Queue -> Active Slot
+    """
+    logger.info("[INFO] Priority Dispatcher Started")
+    last_heartbeat = time.time()
+    
+    while True:
+        try:
+            # Heartbeat (Every 10s)
+            if time.time() - last_heartbeat > 10:
+                # INSPECT QUEUE CONTENT
+                q_content = list(request_queue.queue)
+                logger.info(f"❤️ Dispatcher Alive. Size: {len(q_content)} | Content: {q_content}")
+                last_heartbeat = time.time()
+
+            # 1. Wait for a free slot (Blocking)
+            logger.info("Dispatcher: Attempting to acquire slot...") 
+            active_requests_sem.acquire() 
+            logger.info("Dispatcher: Slot acquired.")
+            
+            # 2. Slot found! Get the highest priority user
+            try:
+                # logger.debug("Dispatcher: Slot acquired. Waiting for user...")
+                # Get ticket from queue (Blocking wait for a user to arrive)
+                logger.info("Dispatcher: Waiting for queue item...")
+                
+                # REFACTOR: Get Simple Tuple
+                priority, timestamp, uid = request_queue.get(timeout=1)            
+                
+                # Retrieve Event safely
+                user_event = request_events.get(uid)
+                
+                if user_event:
+                    # 3. Wake them up
+                    logger.info(f"Dispatcher: Waking up Request {uid} (Priority {priority})")
+                    user_event.set()
+                else:
+                     logger.warning(f"⚠️ Dispatcher: Event for {uid} not found (User gave up?)")
+
+            except queue.Empty:
+                # No users waiting? Release the slot so we can loop back and check again
+                logger.info("Dispatcher: Queue Empty. Releasing slot.")
+                active_requests_sem.release()
+                time.sleep(0.1)
+                
+        except Exception as e:
+            logger.error(f"❌ Dispatcher Crash: {e}", exc_info=True)
+            time.sleep(1) # Prevent tight loop crash
 FILEBASE_KEY = os.getenv("FILEBASE_KEY")
 FILEBASE_SECRET = os.getenv("FILEBASE_SECRET")
 FILEBASE_BUCKET = os.getenv("FILEBASE_BUCKET")
@@ -270,15 +322,22 @@ def chat(current_user):
     # Create a unique event for this request to wait on
     my_turn_event = threading.Event()
     
-    # Enqueue: (Priority, Timestamp, UniqueID, UserEvent)
+    # Enqueue: (Priority, Timestamp, UniqueID) - Event stored separately
     req_id = next(unique_counter)
-    request_queue.put((priority, time.time(), req_id, my_turn_event))
+    request_events[req_id] = my_turn_event # Store Event globally
+    
+    request_queue.put((priority, time.time(), req_id))
     logger.info(f"📥 Queued Request {req_id} (Priority: {priority}) | QueueID: {id(request_queue)}")
     
     # 4. Wait for Dispatcher to wake us up
     # Commanders will be woken up before Conscripts
     start_wait = time.time()
-    if not my_turn_event.wait(timeout=60): # 60s max wait time
+    signaled = my_turn_event.wait(timeout=60) # 60s max wait time
+    
+    # Cleanup Event
+    request_events.pop(req_id, None) 
+    
+    if not signaled:
         # Timeout - Refund and Exit
         logger.warning(f"⏰ Timeout waiting for slot. Request {req_id}")
         users_collection.update_one({"id": current_user['id']}, {"$inc": {"coins": cost}})
