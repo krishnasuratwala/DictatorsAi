@@ -645,7 +645,8 @@ def send_smtp_email(to_email, subject, body):
         msg.attach(MIMEText(body, 'plain'))
 
         context = ssl.create_default_context()
-        with smtplib.SMTP(smtp_host, smtp_port) as server:
+        # Add timeout to prevent Worker Hanging/Timeout
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=5) as server:
             server.starttls(context=context)
             server.login(smtp_user, smtp_pass)
             server.sendmail(smtp_user, to_email, msg.as_string())
