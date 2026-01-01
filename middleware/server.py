@@ -646,10 +646,17 @@ def send_smtp_email(to_email, subject, body):
 
         context = ssl.create_default_context()
         # Add timeout to prevent Worker Hanging/Timeout
-        with smtplib.SMTP(smtp_host, smtp_port, timeout=5) as server:
-            server.starttls(context=context)
-            server.login(smtp_user, smtp_pass)
-            server.sendmail(smtp_user, to_email, msg.as_string())
+        if smtp_port == 465:
+             # SSL Connection (Standard for Port 465)
+             with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=5, context=context) as server:
+                server.login(smtp_user, smtp_pass)
+                server.sendmail(smtp_user, to_email, msg.as_string())
+        else:
+             # TLS Connection (Standard for Port 587)
+             with smtplib.SMTP(smtp_host, smtp_port, timeout=5) as server:
+                server.starttls(context=context)
+                server.login(smtp_user, smtp_pass)
+                server.sendmail(smtp_user, to_email, msg.as_string())
         
         print(f"[INFO] 📧 Email sent successfully to {to_email}")
         return True
