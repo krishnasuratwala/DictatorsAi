@@ -1124,12 +1124,19 @@ import tempfile
 import base64
 # from moviepy.editor import ImageClip, AudioFileClip # Removed unused dependency
 
-@app.route('/api/generate-video', methods=['POST'])
+@app.route('/api/generate-video', methods=['POST', 'OPTIONS'])
 @token_required
 def generate_video(u):
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'ok'}), 200
+
     data = request.json
+    print(f"🎥 Generate Video Request from {u['username']}")
+    print(f"📦 Payload Keys: {data.keys()}")
+    
     image_data = data.get('image') # Base64 Data URL
     audio_url = data.get('audioUrl')
+    print(f"🔗 Audio URL: {audio_url}")
 
     if not image_data:
         return jsonify({'error': 'Missing image'}), 400
@@ -1162,21 +1169,32 @@ def generate_video(u):
         
         if audio_url and audio_url != "static_test":
              try:
-                 print(f"Downloading Audio: {audio_url}")
-                 audio_resp = requests.get(audio_url)
+                 print(f"⬇️ Downloading Audio...")
+                 # Verify header first to avoid large file issues? No, just get it.
+                 # Add User-Agent in case Filebase blocks generic python requests
+                 audio_resp = requests.get(audio_url, headers={'User-Agent': 'DictatorAI/1.0'}, timeout=30)
                  audio_resp.raise_for_status()
                  
                  with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as audio_file:
                      audio_file.write(audio_resp.content)
                      audio_path = audio_file.name
+                 print(f"✅ Audio Downloaded: {len(audio_resp.content)} bytes")
+                 
              except Exception as e:
-                 print(f"Audio Download Failed: {e}")
-                 raise Exception("Audio transmission failed. Cannot generate video without audio source.")
+                 logger.error(f"Audio Download Failed: {e}")
+                 # Check for 403 (Expiry)
+                 if "403" in str(e):
+                      return jsonify({'error': 'Audio Link Expired. Please refresh the page.'}), 400, {'Access-Control-Allow-Origin': '*'}
+                 if "404" in str(e):
+                      return jsonify({'error': 'Audio File Not Found.'}), 404, {'Access-Control-Allow-Origin': '*'}
+                 
+                 return jsonify({'error': f'Audio transmission failed: {str(e)}'}), 422, {'Access-Control-Allow-Origin': '*'}
         else:
-             raise Exception("No audio signal detected. Video generation requires audio.")
+             print("⚠️ No Audio URL provided.")
+             return jsonify({'error': 'No audio signal detected. Video generation requires audio.'}), 400, {'Access-Control-Allow-Origin': '*'}
 
         if not audio_path or not os.path.exists(audio_path):
-             raise Exception("Audio file invalid.")
+             return jsonify({'error': 'Audio file invalid.'}), 500, {'Access-Control-Allow-Origin': '*'}
 
         # 3. Create Video with Direct FFmpeg (High Performance)
         # 0.1 CPU Optimization: We bypass Python processing entirely.
