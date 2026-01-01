@@ -246,7 +246,7 @@ def token_required(f):
     def decorated(*args, **kwargs):
         # Allow OPTIONS requests without token (CORS Preflight)
         if request.method == 'OPTIONS':
-            return f(*args, **kwargs)
+            return jsonify({'status': 'ok'}), 200
 
         token = None
         if 'Authorization' in request.headers:
