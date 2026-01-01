@@ -380,15 +380,22 @@ def dispatcher():
     Background thread that moves users from Queue -> Active Slot
     """
     logger.info("[INFO] Priority Dispatcher Started")
+    last_heartbeat = time.time()
+    
     while True:
         try:
+            # Heartbeat (Every 10s)
+            if time.time() - last_heartbeat > 10:
+                logger.info(f"❤️ Dispatcher Alive. Queue Size: {request_queue.qsize()}")
+                last_heartbeat = time.time()
+
             # 1. Wait for a free slot (Blocking)
-            # logger.debug("Dispatcher: Waiting for slot...") 
+            # logger.info("Dispatcher: Attempting to acquire slot...")
             active_requests_sem.acquire() 
+            # logger.info("Dispatcher: Slot acquired.")
             
             # 2. Slot found! Get the highest priority user
             try:
-                # logger.debug("Dispatcher: Slot acquired. Waiting for user...")
                 # Get ticket from queue (Blocking wait for a user to arrive)
                 priority, timestamp, uid, user_event = request_queue.get(timeout=1)            
                 
@@ -406,7 +413,13 @@ def dispatcher():
             time.sleep(1) # Prevent tight loop crash
 
 # Start Dispatcher
-threading.Thread(target=dispatcher, daemon=True).start()
+# Ensure we strictly only start one thread if multiple imports happen (rare in gunicorn but possible)
+if not any(t.name == "DispatcherThread" for t in threading.enumerate()):
+    t = threading.Thread(target=dispatcher, daemon=True, name="DispatcherThread")
+    t.start()
+    logger.info("Dispatcher Thread Launched")
+else:
+    logger.info("Dispatcher Thread already running")
 
 # --- OTHER ROUTES (User, Login, Admin) Copied from previous logic ---
 # (For brevity, I assume standard auth routes login/signup/me exist here. 
