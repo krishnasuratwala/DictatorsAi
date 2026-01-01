@@ -1,0 +1,11 @@
+flask
+flask-cors
+requests
+pymongo
+dnspython
+pyjwt
+gunicorn
+werkzeug
+google-auth
+
+moviepy==1.0.3

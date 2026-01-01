@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base Bunker / Radio Theme */
+.bg-radio {
+  background-color: #1c1c1c;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
+}
+
+/* War Room Theme - Dark, Tactical, Red/Amber undertones */
+.bg-warroom {
+  background-color: #0f0c08;
+  background-image: 
+    linear-gradient(rgba(0,0,0,0.8), rgba(0,0,0,0.8)),
+    repeating-linear-gradient(45deg, #1a1510 0, #1a1510 1px, transparent 0, transparent 50%);
+  background-size: cover, 20px 20px;
+}
+
+/* Public Rally Theme - Outdoor, Sepia/Red, Crowd noise implied */
+.bg-rally {
+  background-color: #2e0f0f;
+  background-image: 
+    linear-gradient(to bottom, rgba(46, 15, 15, 0.9) 0%, rgba(0,0,0,1) 100%),
+    url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239c92ac' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* Press Conference Theme - Cold, Blue/Grey, Clean */
+.bg-conference {
+  background-color: #1e293b;
+  background-image: 
+    radial-gradient(circle at 50% 0%, #334155 0%, #0f172a 70%);
+}
+
+.font-typewriter {
+  font-family: 'Special Elite', monospace;
+}
+
+.font-oswald {
+  font-family: 'Oswald', sans-serif;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #2b2b2b; 
+}
+::-webkit-scrollbar-thumb {
+  background: #525252;
+  border: 1px solid #1a1a1a;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #8a1c1c; /* Red highlight on hover */
+}
+
+.text-glow {
+  text-shadow: 0 0 10px rgba(138, 28, 28, 0.5);
+}
+
+.border-red-glow {
+  box-shadow: 0 0 15px rgba(138, 28, 28, 0.2);
+}

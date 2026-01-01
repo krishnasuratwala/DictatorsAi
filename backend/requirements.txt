@@ -1,0 +1,8 @@
+flask
+requests
+boto3
+TTS
+transformers==4.40.1
+accelerate>=0.26.0
+sacremoses
+sentencepiece
