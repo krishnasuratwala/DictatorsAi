@@ -1247,6 +1247,17 @@ const App: React.FC = () => {
 
                               <div className="whitespace-pre-wrap">{msg.parts[0].text}</div>
 
+
+                              {/* AUDIO LOADING STATE (Transmitting...) */}
+                              {isAi && !msg.audioUrl && currentUser?.subscription !== 'free' && isTyping && idx === currentMessages.length - 1 && (
+                                <div className="flex items-center gap-2 mt-3 pt-2 self-start animate-pulse border-t border-white/5 opacity-90">
+                                  <div className="w-3 h-3 border-2 border-red-900 border-t-red-600 rounded-full animate-spin"></div>
+                                  <span className="text-[10px] uppercase font-mono tracking-widest text-red-600 font-bold">
+                                    Audio Signal Incoming...
+                                  </span>
+                                </div>
+                              )}
+
                               {/* AUDIO PLAYER (Infantry/Commander) */}
                               {isAi && msg.audioUrl && (
                                 <VoicePlayer src={msg.audioUrl} />

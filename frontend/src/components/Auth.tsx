@@ -63,6 +63,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                     setSuccessMsg(msg);
                     // Optional: Auto-login or just stay on success and let user go to login
                     setTimeout(() => {
+                        setIsLoading(false);
                         setUserView('login');
                         setSuccessMsg("Password updated. Please login with new credentials.");
                         setPassword(''); // Clear old pass

@@ -109,7 +109,10 @@ ssh -p 11064 root@ssh3.vast.ai -L 8080:localhost:8080
 ```powershell
 # 1. Upload Code
 scp -P 11064 "C:\Users\OM\.gemini\antigravity\scratch\dictator-ai\dict\backend\gpu_node.py" root@ssh3.vast.ai:/workspace/gpu_node.py
-
+scp -P 11064 "C:\Users\OM\.gemini\antigravity\scratch\dictator-ai\dict\backend\btcpay_utlis.py" root@ssh3.vast.ai:/workspace/btcpay_utlis.py
+scp -P 25392 "C:\Users\OM\.gemini\antigravity\scratch\dictator-ai\dict\middleware\server.py" root@ssh8.vast.ai:/workspace/server.py
+scp -P 25392 "C:\Users\OM\.gemini\antigravity\scratch\dictator-ai\dict\backend\requirements.txt" root@ssh8.vast.ai:/workspace/requirements.txt
+scp -P 25392 "C:\Users\OM\.gemini\antigravity\scratch\dictator-ai\dict\backend\start_all.sh" root@ssh8.vast.ai:/workspace/start_all.sh
 # 2. Upload Reference Audio (CRITICAL)
 # Make sure the file exists at this path!
 scp -P 11064 "C:\Users\OM\Downloads\reference.wav" root@ssh3.vast.ai:"/workspace/hitler_shouting_clean (1).mp3"
@@ -138,15 +141,23 @@ cd /workspace
 export LLM_URL="http://127.0.0.1:19000/v1/chat/completions"
 nohup ./venv/bin/python gpu_node.py > /tmp/gpu_node.log 2>&1 &
 
-# Monitor
-tail -f /tmp/gpu_node.log
+
+# monitor and starts
+./start_all.sh
+
+# # Monitor
+# tail -f gpu_node.log
 
 # killing process
+pkill -f gunicorn
 pkill -f gpu_node.py
+pkill -f cloudflared
 ```
 
 You should see: `✅ XTTS Model Ready.`
 
+
+<!-- 
 
 ## 7. Verification
 From your **Local PowerShell**:
@@ -156,9 +167,9 @@ From your **Local PowerShell**:
 # IMPORTANT: Use the EXTERNAL PORT mapped to 6000 (e.g. 20111 in your case)
 # Check your Vast.ai "Open Ports" section.
 
-Invoke-RestMethod -Uri "http://74.48.140.178:35652/generate_stream" `
+Invoke-RestMethod -Uri "http://199.126.134.31:58413" `
   -Method Post `
   -ContentType "application/json" `
   -Body '{"messages": [{"role": "user", "content": "hello"}], "tier": "free"}'
 
-```
+``` -->

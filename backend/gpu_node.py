@@ -107,34 +107,42 @@ def load_xtts_model():
 # Initial Load
 load_xtts_model()
 
-def upload_to_filebase(local_path, filename):
-    if not s3_client: return None
+from huggingface_hub import HfApi
+
+# --- HUGGING FACE CONFIG ---
+HF_TOKEN = os.getenv("HF_TOKEN")
+HF_DATASET = os.getenv("HF_DATASET")
+
+def upload_to_hf(local_path, filename):
+    if not HF_TOKEN or not HF_DATASET: 
+        print("⚠️ HF Token/Dataset missing.")
+        return None
     try:
-        # 1. Upload
-        print(f"⬆️  Uploading {filename} to Filebase...")
-        s3_client.upload_file(
-            local_path, 
-            FILEBASE_BUCKET, 
-            filename, 
-            ExtraArgs={'ContentType': 'audio/wav'}
+        api = HfApi()
+        print(f"⬆️  Uploading {filename} to Hugging Face ({HF_DATASET})...")
+        
+        api.upload_file(
+            path_or_fileobj=local_path,
+            path_in_repo=filename,
+            repo_id=HF_DATASET,
+            repo_type="dataset",
+            token=HF_TOKEN
         )
         
-        # 2. Generate SIGNED URL
-        url = s3_client.generate_presigned_url(
-            'get_object',
-            Params={'Bucket': FILEBASE_BUCKET, 'Key': filename},
-            ExpiresIn=3600  # 1 Hour Expiry
-        )
-        
-        print(f"✅ Generated Signed URL: {url}")
-        return url
+        # Return a Magic Prefix for Middleware to rewrite
+        # Middleware will replace 'HF_PROXY:' with its own public URL + /api/audio/
+        magic_url = f"HF_PROXY:{filename}"
+        print(f"✅ Uploaded. Returning Proxy Key: {magic_url}")
+        return magic_url
         
     except Exception as e:
-        print(f"❌ Upload Failed: {e}")
+        print(f"❌ HF Upload Failed: {e}")
         return None 
 
 def generate_voice(text, filename, prompt_path):
     global tts_model, xtts_config
+    import numpy as np
+    
     if not tts_model: 
         print("❌ TTS Model not loaded.")
         return None
@@ -143,30 +151,107 @@ def generate_voice(text, filename, prompt_path):
         return None
         
     try:
-        print(f"🎙️ Generating Audio (DE): '{text}' using {prompt_path}")
+        print(f"🎙️ Generating Audio (DE): '{text[:50]}...' using {prompt_path}")
         
-        # Run Inference
-        outputs = tts_model.synthesize(
-            text,
-            xtts_config,
-            speaker_wav=prompt_path,
-            gpt_cond_len=3,
-            language="de"
-        )
+        # 1. Split Text into readable chunks (XTTS Limit ~250 chars)
+        # 1. Split Text into small, digestible chunks (XTTS Limit ~100-120 chars for stability)
+        def split_text(text, max_len=120):
+            # Sanitize: Replace complex dashes with simple commas
+            text = text.replace("–", ",").replace("—", ",").replace("-", ",")
+            
+            # Aggressive Splitting Pattern: Split on . ! ? ; : and even , if needed
+            # We split by these delimiters but keep them attached to the previous word if possible
+            import re
+            
+            # Step 1: Split by major punctuation first
+            sentences = re.split(r'(?<=[.!?])\s+', text)
+            
+            final_chunks = []
+            
+            for sentence in sentences:
+                if len(sentence) < max_len:
+                    final_chunks.append(sentence.strip())
+                else:
+                    # Step 2: If sentence is too long, split by clauses (comma, semicolon, colon)
+                    sub_parts = re.split(r'(?<=[,;:])\s+', sentence)
+                    current_chunk = ""
+                    
+                    for part in sub_parts:
+                        if len(current_chunk) + len(part) < max_len:
+                            current_chunk += part + " "
+                        else:
+                            if current_chunk.strip():
+                                final_chunks.append(current_chunk.strip())
+                            current_chunk = part + " "
+                    
+                    if current_chunk.strip():
+                        final_chunks.append(current_chunk.strip())
+            
+            # Filter empty strings
+            return [c for c in final_chunks if c.strip()]
+
+        chunks = split_text(text)
+        all_wav_parts = []
         
-        # Save output
+        for i, chunk in enumerate(chunks):
+            if not chunk.strip(): continue
+            print(f"   🔹 Processing Chunk {i+1}/{len(chunks)} ({len(chunk)} chars): '{chunk}'")
+            
+            try:
+                outputs = tts_model.synthesize(
+                    chunk,
+                    xtts_config,
+                    speaker_wav=prompt_path,
+                    gpt_cond_len=3,
+                    language="de",
+                    temperature=0.75,
+                    length_penalty=1.0,
+                    repetition_penalty=2.0,
+                    top_k=50,
+                    top_p=0.85
+                )
+                wav_chunk = outputs['wav']
+                print(f"      ✅ Generated {len(wav_chunk)} samples.")
+                all_wav_parts.append(wav_chunk)
+                
+                # Add small silence (0.2s) between sentences
+                silence_samples = int(xtts_config.audio.sample_rate * 0.2)
+                all_wav_parts.append(np.zeros(silence_samples, dtype=np.float32))
+            except Exception as ce:
+                print(f"      ⚠️ Chunk Generation Failed: {ce}")
+
+        if not all_wav_parts: return None
+        
+        # 2. Concatenate all audio parts
+        final_wav = np.concatenate(all_wav_parts)
+        
+        # 3. Save output
         path = os.path.join("static_audio", filename)
-        # outputs['wav'] is numpy array, sample_rate is in config
-        # torchaudio.save expects tensor: (channels, time)
-        wav_tensor = torch.from_numpy(outputs['wav']).unsqueeze(0)
+        wav_tensor = torch.from_numpy(final_wav).unsqueeze(0)
         torchaudio.save(path, wav_tensor, xtts_config.audio.sample_rate)
         
-        return upload_to_filebase(path, filename) or f"/static_audio/{filename}"
+        return upload_to_hf(path, filename) or f"/static_audio/{filename}"
     except Exception as e:
         print(f"❌ XTTS Generation Error: {e}")
         return None
 
+from functools import wraps
+
+# --- INTERNAL SECURITY ---
+INTERNAL_SECRET = os.getenv("INTERNAL_SECRET", "DICTATOR_INTERNAL_V1_SECURE")
+
+def require_internal_token(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = request.headers.get('X-Internal-Secret')
+        if not token or token != INTERNAL_SECRET:
+            print(f"🛑 Unauthorized Access Attempt from {request.remote_addr}")
+            return "Unauthorized", 401
+        return f(*args, **kwargs)
+    return decorated
+
 @app.route('/generate_stream', methods=['POST'])
+@require_internal_token
 def generate_stream():
     data = request.json
     messages = data.get('messages', [])
@@ -191,7 +276,7 @@ def generate_stream():
                     "model": CUSTOM_MODEL,
                     "stream": True,
                     "stop": ["<|im_end|>"], 
-                    "n_predict": 256, 
+                    "n_predict": 516, 
                     "temperature": 0.75,
                     "top_p": 0.9,
                     "repeat_penalty": 1.2,
@@ -248,10 +333,25 @@ def generate_stream():
                 final_text = full_response_text
                 if translator:
                     print(f"🔄 Translating: {full_response_text[:50]}...")
-                    translation = translator(full_response_text)
-                    if translation and len(translation) > 0:
-                        final_text = translation[0]['translation_text']
-                        print(f"✅ Translated: {final_text[:50]}...")
+                    # Split input text if too long for translator (limit ~512 tokens)
+                    import re
+                    # Split by sentence endings to keep context
+                    input_sentences = re.split(r'(?<=[.!?])\s+', full_response_text)
+                    translated_parts = []
+                    
+                    # Batch translate if possible, or loop
+                    # HuggingFace pipeline handles batching but safest to loop for error isolation
+                    for sent in input_sentences:
+                        if not sent.strip(): continue
+                        try:
+                            res = translator(sent)
+                            if res: translated_parts.append(res[0]['translation_text'])
+                        except Exception as te:
+                            print(f"⚠️ Translation partial fail: {te}")
+                            translated_parts.append(sent) # Fallback to English
+                            
+                    final_text = " ".join(translated_parts)
+                    print(f"✅ Translated: {final_text}... (Length: {len(final_text)})")
                 
                 filename = f"speech_{int(time.time())}_{os.urandom(4).hex()}.wav"
                 # Generate with German text
@@ -270,5 +370,8 @@ def serve_audio(filename):
     return flask.send_from_directory('static_audio', filename)
 
 if __name__ == '__main__':
-    print("🚀 GPU Node (Streaming) starting on port 6000...")
-    app.run(host='0.0.0.0', port=6000, threaded=True)
+    load_xtts_model()
+    print("🚀 GPU Node (Streaming) starting on port 5000...")
+    # SECURE: Bind to Localhost Only.
+    # Only Middleware on the same machine can access this.
+    app.run(host='127.0.0.1', port=5000, threaded=True)

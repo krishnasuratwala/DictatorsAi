@@ -44,29 +44,29 @@ if FILEBASE_KEY and FILEBASE_SECRET:
     except Exception as e:
         print(f"⚠️ Middleware Filebase Config Failed: {e}")
 
-def get_refreshed_url(old_url):
-    """Refreshes a signed URL if we have S3 access."""
-    if not s3_client or not old_url: return old_url
+# def get_refreshed_url(old_url):
+#     """Refreshes a signed URL if we have S3 access."""
+#     if not s3_client or not old_url: return old_url
     
-    try:
-        # Extract Key (Filename) from URL
-        # URL Format: https://s3.filebase.com/BUCKET/KEY?Signature...
-        from urllib.parse import urlparse
-        path = urlparse(old_url).path # /hitler-audio/filename.wav or /filename.wav
+#     try:
+#         # Extract Key (Filename) from URL
+#         # URL Format: https://s3.filebase.com/BUCKET/KEY?Signature...
+#         from urllib.parse import urlparse
+#         path = urlparse(old_url).path # /hitler-audio/filename.wav or /filename.wav
         
-        # Remove bucket name if present in path (Filebase paths vary by endpoint style)
-        key = path.split('/')[-1]
+#         # Remove bucket name if present in path (Filebase paths vary by endpoint style)
+#         key = path.split('/')[-1]
         
-        # Generate NEW Signed URL
-        url = s3_client.generate_presigned_url(
-            'get_object',
-            Params={'Bucket': FILEBASE_BUCKET, 'Key': key},
-            ExpiresIn=3600 # 1 Hour
-        )
-        return url
-    except Exception as e:
-        print(f"Failed to refresh URL: {e}")
-        return old_url
+#         # Generate NEW Signed URL
+#         url = s3_client.generate_presigned_url(
+#             'get_object',
+#             Params={'Bucket': FILEBASE_BUCKET, 'Key': key},
+#             ExpiresIn=3600 # 1 Hour
+#         )
+#         return url
+#     except Exception as e:
+#         print(f"Failed to refresh URL: {e}")
+#         return old_url
 
 
 import logging
@@ -82,8 +82,9 @@ CORS(app, resources={r"/*": {"origins": ["https://dictators-ai.vercel.app", "htt
 # --- CONFIGURATION ---
 MONGO_URI = os.getenv("MONGO_URI")
 DB_NAME = "dictator_ai_db"
-# Use /generate_stream endpoint on Backend
-GPU_NODE_URL = os.getenv("GPU_NODE_URL", "http://74.48.140.178:35652").rstrip('/') + "/generate_stream"
+# SECURE: Talk to Localhost GPU Node (Now on Port 5000)
+GPU_NODE_URL = "http://127.0.0.1:5000/generate_stream"
+INTERNAL_SECRET = os.getenv("INTERNAL_SECRET", "DICTATOR_INTERNAL_V1_SECURE")
 SECRET_KEY = os.getenv("SECRET_KEY")
 
 # --- CONCURRENCY CONTROL (SCALABLE QUEUE) ---
@@ -95,59 +96,59 @@ request_events = {} # Map req_id -> threading.Event()
 
 # ... (omitted)
 
-# --- REPLACED DISPATCHER ---
-def dispatcher():
-    """
-    Background thread that moves users from Queue -> Active Slot
-    """
-    logger.info("[INFO] Priority Dispatcher Started")
-    last_heartbeat = time.time()
+# # --- REPLACED DISPATCHER ---
+# def dispatcher():
+#     """
+#     Background thread that moves users from Queue -> Active Slot
+#     """
+#     # logger.info("[INFO] Priority Dispatcher Started")
+#     last_heartbeat = time.time()
     
-    while True:
-        try:
-            # Heartbeat (Every 10s)
-            if time.time() - last_heartbeat > 10:
-                # INSPECT QUEUE CONTENT
-                q_content = list(request_queue.queue)
-                logger.info(f"❤️ Dispatcher Alive. Size: {len(q_content)} | Content: {q_content}")
-                last_heartbeat = time.time()
+#     while True:
+#         try:
+#             # Heartbeat (Every 10s)
+#             if time.time() - last_heartbeat > 10:
+#                 # INSPECT QUEUE CONTENT
+#                 q_content = list(request_queue.queue)
+#                 logger.info(f"❤️ Dispatcher Alive. Size: {len(q_content)} | Content: {q_content}")
+#                 last_heartbeat = time.time()
 
-            # 1. Wait for a free slot (Blocking)
-            logger.info("Dispatcher: Attempting to acquire slot...") 
-            active_requests_sem.acquire() 
-            logger.info("Dispatcher: Slot acquired.")
+#             # 1. Wait for a free slot (Blocking)
+#             # logger.info("Dispatcher: Attempting to acquire slot...") 
+#             active_requests_sem.acquire() 
+#             # logger.info("Dispatcher: Slot acquired.")
             
-            # 2. Slot found! Get the highest priority user
-            try:
-                # logger.debug("Dispatcher: Slot acquired. Waiting for user...")
-                # Get ticket from queue (Blocking wait for a user to arrive)
-                logger.info("Dispatcher: Waiting for queue item...")
+#             # 2. Slot found! Get the highest priority user
+#             try:
+#                 # logger.debug("Dispatcher: Slot acquired. Waiting for user...")
+#                 # Get ticket from queue (Blocking wait for a user to arrive)
+#                 # logger.info("Dispatcher: Waiting for queue item...")
                 
-                # REFACTOR: Get Simple Tuple
-                priority, timestamp, uid = request_queue.get(timeout=1)            
+#                 # REFACTOR: Get Simple Tuple
+#                 priority, timestamp, uid = request_queue.get(timeout=1)            
                 
-                # Retrieve Event safely
-                user_event = request_events.get(uid)
+#                 # Retrieve Event safely
+#                 user_event = request_events.get(uid)
                 
-                if user_event:
-                    # 3. Wake them up
-                    logger.info(f"Dispatcher: Waking up Request {uid} (Priority {priority})")
-                    user_event.set()
-                else:
-                     logger.warning(f"⚠️ Dispatcher: Event for {uid} not found (User gave up?)")
+#                 if user_event:
+#                     # 3. Wake them up
+#                     logger.info(f"Dispatcher: Waking up Request {uid} (Priority {priority})")
+#                     user_event.set()
+#                 else:
+#                      logger.warning(f"⚠️ Dispatcher: Event for {uid} not found (User gave up?)")
 
-            except queue.Empty:
-                # No users waiting? Release the slot so we can loop back and check again
-                logger.info("Dispatcher: Queue Empty. Releasing slot.")
-                active_requests_sem.release()
-                time.sleep(0.1)
+#             except queue.Empty:
+#                 # No users waiting? Release the slot so we can loop back and check again
+#                 # logger.info("Dispatcher: Queue Empty. Releasing slot.")
+#                 active_requests_sem.release()
+#                 time.sleep(0.1)
                 
-        except Exception as e:
-            logger.error(f"❌ Dispatcher Crash: {e}", exc_info=True)
-            time.sleep(1) # Prevent tight loop crash
-FILEBASE_KEY = os.getenv("FILEBASE_KEY")
-FILEBASE_SECRET = os.getenv("FILEBASE_SECRET")
-FILEBASE_BUCKET = os.getenv("FILEBASE_BUCKET")
+#         except Exception as e:
+#             logger.error(f"❌ Dispatcher Crash: {e}", exc_info=True)
+#             time.sleep(1) # Prevent tight loop crash
+# FILEBASE_KEY = os.getenv("FILEBASE_KEY")
+# FILEBASE_SECRET = os.getenv("FILEBASE_SECRET")
+# FILEBASE_BUCKET = os.getenv("FILEBASE_BUCKET")
 
 s3_client = None
 if FILEBASE_KEY and FILEBASE_SECRET:
@@ -396,18 +397,19 @@ def chat(current_user):
         return jsonify({"error": "SERVER_BUSY_TIMEOUT"}), 503
 
     # 5. WE HAVE A SLOT!
-    logger.info(f"🟢 Slot Acquired for Request {req_id}")
+    # logger.info(f"🟢 Slot Acquired for Request {req_id}")
     try:
         # Connect to Backend
-        logger.info(f"📡 Connecting to GPU Node: {GPU_NODE_URL}")
+        # logger.info(f"📡 Connecting to GPU Node: {GPU_NODE_URL}")
         upstream_response = requests.post(
             GPU_NODE_URL, 
             json=payload, 
+            headers={'X-Internal-Secret': INTERNAL_SECRET},
             stream=True, 
             timeout=120
         )
         upstream_response.raise_for_status()
-        logger.info(f"✅ Connected to GPU Node for Request {req_id}")
+        # logger.info(f"✅ Connected to GPU Node for Request {req_id}")
 
         def generate():
             full_response_text = ""
@@ -416,14 +418,46 @@ def chat(current_user):
                 for line in upstream_response.iter_lines():
                     if line:
                         decoded_line = line.decode('utf-8')
+                        
+                        # --- DYNAMIC URL REWRITE (Surgical) ---
+                        # If GPU Node returns HF_PROXY:filename, convert to Middleware Proxy URL
+                        # This works regardless of Cloudflare/Localhost domain
+                        if 'HF_PROXY:' in decoded_line:
+                            try:
+                                # 1. Parse
+                                data_obj = json.loads(decoded_line)
+                                if data_obj.get('url', '').startswith('HF_PROXY:'):
+                                    raw_file = data_obj['url'].replace('HF_PROXY:', '')
+                                    # 2. Construct Proxy URL (e.g. https://.../api/audio/foo.wav)
+                                    # Ensure trailing slash on root
+                                    base = request.url_root
+                                    if not base.endswith('/'): base += '/'
+                                    new_url = f"{base}api/audio/{raw_file}"
+                                    
+                                    data_obj['url'] = new_url
+                                    final_audio_url = new_url # Store for DB
+                                    
+                                    # 3. Reserialize
+                                    decoded_line = json.dumps(data_obj)
+                            except:
+                                pass # If parse fails, pass raw line (better than crash)
+
                         yield f"data: {decoded_line}\n\n"
+                        
                         # Accumulate text for saving
                         try:
-                            data = json.loads(decoded_line)
-                            if data.get('type') == 'text':
-                                full_response_text += data.get('content', '')
-                            elif data.get('type') == 'audio':
-                                final_audio_url = data.get('url')
+                            # Re-parse if not already parsed (for text accumulation)
+                            # Logic: If it was rewritten, data_obj is fresh. If not, parse again.
+                            if 'data_obj' not in locals():
+                                data_obj = json.loads(decoded_line)
+                                
+                            if data_obj.get('type') == 'text':
+                                full_response_text += data_obj.get('content', '')
+                            elif data_obj.get('type') == 'audio':
+                                final_audio_url = data_obj.get('url')
+                            
+                            # Clear local var for next loop
+                            del data_obj 
                         except:
                             pass
             except Exception as e:
@@ -431,7 +465,7 @@ def chat(current_user):
             finally:
                 upstream_response.close()
                 active_requests_sem.release()
-                logger.info(f"🏁 Request {req_id} Finished. Slot Released.")
+                # logger.info(f"🏁 Request {req_id} Finished. Slot Released.")
 
                 # --- SAVE TO DB ---
                 if sessionId and full_response_text:
@@ -477,7 +511,7 @@ def dispatcher():
     """
     Background thread that moves users from Queue -> Active Slot
     """
-    logger.info("[INFO] Priority Dispatcher Started")
+    # logger.info("[INFO] Priority Dispatcher Started")
     last_heartbeat = time.time()
     
     while True:
@@ -488,15 +522,15 @@ def dispatcher():
                 last_heartbeat = time.time()
 
             # 1. Wait for a free slot (Blocking)
-            logger.info("Dispatcher: Attempting to acquire slot...") 
+            # logger.info("Dispatcher: Attempting to acquire slot...") 
             active_requests_sem.acquire() 
-            logger.info("Dispatcher: Slot acquired.")
+            # logger.info("Dispatcher: Slot acquired.")
             
             # 2. Slot found! Get the highest priority user
             try:
                 # logger.debug("Dispatcher: Slot acquired. Waiting for user...")
                 # Get ticket from queue (Blocking wait for a user to arrive)
-                logger.info("Dispatcher: Waiting for queue item...")
+                # logger.info("Dispatcher: Waiting for queue item...")
                 # REFACTOR: Get Simple Tuple
                 priority, timestamp, uid = request_queue.get(timeout=1)            
                 
@@ -512,7 +546,7 @@ def dispatcher():
                 
             except queue.Empty:
                 # No users waiting? Release the slot so we can loop back and check again
-                logger.info("Dispatcher: Queue Empty. Releasing slot.")
+                # logger.info("Dispatcher: Queue Empty. Releasing slot.")
                 active_requests_sem.release()
                 time.sleep(0.1)
                 
@@ -526,7 +560,7 @@ def start_dispatcher_if_necessary():
     # but after fork(), the Workers DO NOT have the thread.
     # We must check and start it inside the Worker process.
     if not any(t.name == "DispatcherThread" for t in threading.enumerate()):
-        logger.info(f"🚀 Worker {os.getpid()}: Starting Dispatcher Thread")
+        # logger.info(f"🚀 Worker {os.getpid()}: Starting Dispatcher Thread")
         t = threading.Thread(target=dispatcher, daemon=True, name="DispatcherThread")
         t.start()
 
@@ -1242,8 +1276,8 @@ def generate_video(u):
 
             # 2. Outro (if logo exists)
             # 2. Outro Logic
-            # Fix: Point to frontend assets folder relative to middleware CWD
-            branding_video_path = os.path.abspath(os.path.join(os.getcwd(), '..', 'frontend', 'src', 'assets', 'Branding_Video_Generation_Prompt.mp4'))
+            # Fix: Look in current directory (Vast Workspace)
+            branding_video_path = os.path.join(os.getcwd(), 'Branding_Video_Generation_Prompt.mp4')
             
             if os.path.exists(branding_video_path):
                 print(f"Generating Outro using Video: {branding_video_path}...")
@@ -1631,6 +1665,46 @@ def feedback(u):
 # IMPORTANT: Use stream_with_context wrapper generator to release semaphore on close.
 
 
+
+
+# --- HUGGING FACE PROXY (For Private Audio) ---
+HF_TOKEN = os.getenv("HF_TOKEN")
+HF_DATASET = os.getenv("HF_DATASET")
+
+@app.route('/api/audio/<path:filename>')
+def proxy_audio(filename):
+    """
+    Proxies audio from a private Hugging Face Dataset.
+    Frontend calls this: /api/audio/speech_123.wav
+    Server fetches from HF (with Token) -> Streams to Client.
+    """
+    if not HF_TOKEN or not HF_DATASET:
+        return jsonify({"error": "HF Config Missing"}), 500
+
+    try:
+        # Construct HF File URL (Private)
+        # Format: https://huggingface.co/datasets/{repo_id}/resolve/main/{filename}
+        hf_url = f"https://huggingface.co/datasets/{HF_DATASET}/resolve/main/{filename}"
+        
+        # Stream content (Auth Header included)
+        resp = requests.get(hf_url, headers={"Authorization": f"Bearer {HF_TOKEN}"}, stream=True, timeout=10)
+        
+        if resp.status_code != 200:
+            logger.error(f"❌ HF Upstream Error: {resp.status_code} - {resp.text}")
+            return jsonify({"error": "Audio not found upstream"}), 404
+
+        def generate():
+            for chunk in resp.iter_content(chunk_size=4096):
+                yield chunk
+
+        return Response(generate(), headers={
+            "Content-Type": "audio/wav",
+            "Cache-Control": "public, max-age=31536000"
+        })
+
+    except Exception as e:
+        logger.error(f"❌ Proxy Error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(port=5000, threaded=True)
