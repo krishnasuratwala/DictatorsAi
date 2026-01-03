@@ -63,10 +63,10 @@ pip install TTS
 # FIX: Downgrade transformers to fix 'BeamSearchScorer' import error in older TTS versions
 pip install "transformers==4.40.1" "accelerate>=0.26.0"
 
-# 6. Filebase Config
-export FILEBASE_KEY="C1A1C1B021991042D1A1"
-export FILEBASE_SECRET="C2IpJ7KB6wxBXl6LjWCMX5L5RcHFfYPs9MPcfyAf"
-export FILEBASE_BUCKET="hitler-audio" 
+# # 6. Filebase Config
+# export FILEBASE_KEY="C1A1C1B021991042D1A1"
+# export FILEBASE_SECRET="C2IpJ7KB6wxBXl6LjWCMX5L5RcHFfYPs9MPcfyAf"
+# export FILEBASE_BUCKET="hitler-audio" 
 ```
 
 ## 4. Download Models
@@ -74,7 +74,7 @@ export FILEBASE_BUCKET="hitler-audio"
 ### A. Download XTTS Fine-Tuned Model
 ```bash
 # Login to Hugging Face (Optional if repo is public, but good practice)
-huggingface-cli login --token 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
+huggingface-cli login --token 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
 
 # Download Model to /workspace/xtts_model
 # Repo: krishnasuratwala/XTTS_HITLER_AUDIO
@@ -113,7 +113,8 @@ scp -P [PORT] "C:\Users\OM\.gemini\antigravity\scratch\dictator-ai\dict\backend\
 scp -P [PORT] "C:\Users\OM\.gemini\antigravity\scratch\dictator-ai\dict\middleware\server.py" root@[IP]:/workspace/server.py
 scp -P [PORT] "C:\Users\OM\.gemini\antigravity\scratch\dictator-ai\dict\backend\requirements.txt" root@[IP]:/workspace/requirements.txt
 scp -P [PORT] "C:\Users\OM\.gemini\antigravity\scratch\dictator-ai\dict\backend\start_all.sh" root@[IP]:/workspace/start_all.sh
-scp -P [PORT] "C:\Users\OM\.gemini\antigravity\scratch\dictator-ai\dict\middleware\.env" root@[IP]:"/workspace/.env"
+scp -P [PORT] "C:\Users\OM\.gemini\antigravity\scratch\dictator-ai\dict\middleware\.env" root@[IP]: /workspace/.env
+scp -P [PORT] "C:\Users\OM\.gemini\antigravity\scratch\dictator-ai\dict\middleware\btcpay_utils.py" root@[IP]:/workspace/btcpay_utils.py
 
 # 2. Upload Assets (Video & Audio)
 scp -P [PORT] "C:\Users\OM\.gemini\antigravity\scratch\dictator-ai\dict\frontend\src\assets\Branding_Video_Generation_Prompt.mp4" root@[IP]:/workspace/Branding_Video_Generation_Prompt.mp4
@@ -128,10 +129,26 @@ Runs everything (LLM, Backend, Middleware, Tunnel) in the background.
 
 ```bash
 cd /workspace
+pip install -r requirements.txt
 chmod +x start_all.sh
 ./start_all.sh
+ctrl+z
+bg
+tail -f gpu_node.log
 ```
 *Wait 10-20s. It will print your `trycloudflare.com` URL to the screen.*
+
+# kill process
+```bash
+pkill -f gunicorn
+pkill -f gpu_node.py
+pkill -f cloudflared
+``` 
+
+
+
+
+
 
 ### Option B: The "Debug" (Manual)
 Best for seeing errors live. Open **Two Terminal Windows**.

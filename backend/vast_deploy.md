@@ -9,10 +9,10 @@ Run this from your **Local PowerShell**:
 ```powershell
 # Search for a good consumer GPU (RTX 3090/4090/A6000)
 # Ensure > 40GB Disk Space for XTTS models
-vastai search offers ' gpu_ram>=24 verified=true rentable=true disk_space>=40'
+vastai search offers ' gpu_ram>=16 gpu_ram<=24 verified=true rentable=true'
 
 # Create Instance (Open Ports 22, 6000, 19000)
-vastai create instance 29204625       `
+vastai create instance 28649224      `
   --image vastai/base-image:@vastai-automatic-tag `
   --env '-p 22:22 -p 6000:6000 -p 19000:19000' `
   --disk 40 `
@@ -64,9 +64,9 @@ pip install TTS
 pip install "transformers==4.40.1" "accelerate>=0.26.0"
 
 # 6. Filebase Config
-export FILEBASE_KEY="C1A1C1B021991042D1A1"
-export FILEBASE_SECRET="C2IpJ7KB6wxBXl6LjWCMX5L5RcHFfYPs9MPcfyAf"
-export FILEBASE_BUCKET="hitler-audio" 
+# export FILEBASE_KEY="C1A1C1B021991042D1A1"
+# export FILEBASE_SECRET="C2IpJ7KB6wxBXl6LjWCMX5L5RcHFfYPs9MPcfyAf"
+# export FILEBASE_BUCKET="hitler-audio" 
 ```
 
 ## 4. Download Models
@@ -74,7 +74,7 @@ export FILEBASE_BUCKET="hitler-audio"
 ### A. Download XTTS Fine-Tuned Model
 ```bash
 # Login to Hugging Face (Optional if repo is public, but good practice)
-huggingface-cli login --token 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
+huggingface-cli login --token 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
 
 # Download Model to /workspace/xtts_model
 # Repo: krishnasuratwala/XTTS_HITLER_AUDIO
@@ -101,21 +101,23 @@ wget --continue --progress=bar:force:noscroll \
 
 # Quantize if needed (Optional)
 # ./llama-quantize /root/.cache/llama.cpp/dictator.gguf /root/.cache/llama.cpp/dictator-q4.gguf Q4_K_M
-```
+
+```bash
 
 ## 5. Upload Code & Audio (From Local)
 Open a **new local terminal**.
-ssh -p 11064 root@ssh3.vast.ai -L 8080:localhost:8080
-```powershell
+ssh -p 16614 root@ssh9.vast.ai -L 8080:localhost:8080```powershell
 # 1. Upload Code
-scp -P 11064 "C:\Users\OM\.gemini\antigravity\scratch\dictator-ai\dict\backend\gpu_node.py" root@ssh3.vast.ai:/workspace/gpu_node.py
-scp -P 11064 "C:\Users\OM\.gemini\antigravity\scratch\dictator-ai\dict\backend\btcpay_utlis.py" root@ssh3.vast.ai:/workspace/btcpay_utlis.py
-scp -P 25392 "C:\Users\OM\.gemini\antigravity\scratch\dictator-ai\dict\middleware\server.py" root@ssh8.vast.ai:/workspace/server.py
-scp -P 25392 "C:\Users\OM\.gemini\antigravity\scratch\dictator-ai\dict\backend\requirements.txt" root@ssh8.vast.ai:/workspace/requirements.txt
-scp -P 25392 "C:\Users\OM\.gemini\antigravity\scratch\dictator-ai\dict\backend\start_all.sh" root@ssh8.vast.ai:/workspace/start_all.sh
-# 2. Upload Reference Audio (CRITICAL)
-# Make sure the file exists at this path!
-scp -P 11064 "C:\Users\OM\Downloads\reference.wav" root@ssh3.vast.ai:"/workspace/hitler_shouting_clean (1).mp3"
+scp -P 16614 "C:\Users\OM\.gemini\antigravity\scratch\dictator-ai\dict\backend\gpu_node.py" root@ssh9.vast.ai:/workspace/gpu_node.py
+scp -P 16614 "C:\Users\OM\.gemini\antigravity\scratch\dictator-ai\dict\middleware\btcpay_utils.py" root@ssh9.vast.ai:/workspace/btcpay_utils.py
+scp -P 16614 "C:\Users\OM\.gemini\antigravity\scratch\dictator-ai\dict\middleware\server.py" root@ssh9.vast.ai:/workspace/server.py
+scp -P 16614 "C:\Users\OM\.gemini\antigravity\scratch\dictator-ai\dict\backend\requirements.txt" root@ssh9.vast.ai:/workspace/requirements.txt
+scp -P 16614 "C:\Users\OM\.gemini\antigravity\scratch\dictator-ai\dict\backend\start_all.sh" root@ssh9.vast.ai:/workspace/start_all.sh
+scp -P 16614 "C:\Users\OM\.gemini\antigravity\scratch\dictator-ai\dict\middleware\.env" root@ssh9.vast.ai:"/workspace/.env"
+
+# 2. Upload Assets (Video & Audio)
+scp -P 16614 "C:\Users\OM\.gemini\antigravity\scratch\dictator-ai\dict\frontend\src\assets\Branding_Video_Generation_Prompt.mp4" root@ssh9.vast.ai:/workspace/Branding_Video_Generation_Prompt.mp4
+scp -P 16614 "C:\Users\OM\Downloads\reference.wav" root@ssh9.vast.ai:"/workspace/hitler_shouting_clean (1).mp3"
 ```
 
 

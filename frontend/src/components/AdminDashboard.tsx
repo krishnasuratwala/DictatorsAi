@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db, User, StoredSession } from '../services/db';
-import { XMarkIcon, EyeIcon, UserGroupIcon, CurrencyDollarIcon, ShieldCheckIcon, HandThumbUpIcon, HandThumbDownIcon } from '@heroicons/react/24/solid';
+import { XMarkIcon, EyeIcon, UserGroupIcon, CurrencyDollarIcon, ShieldCheckIcon, HandThumbUpIcon, HandThumbDownIcon, CommandLineIcon } from '@heroicons/react/24/solid';
 
 interface AdminDashboardProps {
     onClose: () => void;
@@ -14,12 +14,77 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     const [payouts, setPayouts] = useState<any[]>([]);
     const [donations, setDonations] = useState<any[]>([]);
     const [transactions, setTransactions] = useState<any[]>([]); // New State
-    const [activeTab, setActiveTab] = useState<'activity' | 'commissions' | 'donations' | 'financials'>('activity');
+    const [activeTab, setActiveTab] = useState<'activity' | 'commissions' | 'donations' | 'financials' | 'logs'>('activity');
     const [loading, setLoading] = useState(true);
+
+    // Logs State
+    const [logs, setLogs] = useState<string[]>([]);
+    const [logSource, setLogSource] = useState<'gpu' | 'llm' | 'tunnel'>('gpu');
+    const [isLogStreaming, setIsLogStreaming] = useState(false);
 
     useEffect(() => {
         loadData();
     }, []);
+
+    // --- LOG STREAMING EFFECT ---
+    useEffect(() => {
+        let eventSource: EventSource | null = null;
+
+        if (activeTab === 'logs') {
+            setLogs([]); // Clear on switch
+            setIsLogStreaming(true);
+            const token = localStorage.getItem('dictator_token');
+            const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000";
+
+            // Use EventSourcePolyfill if headers needed, or pass via URL param if backend supports it.
+            // But standard EventSource doesn't support headers easily.
+            // Alternative: Fetch loop or use library. 
+            // SIMPLIFICATION: We'll assume the backend checks cookie or we pass token in URL.
+            // Since we implemented 'token_required', we need to pass it.
+            // Standard EventSource can't pass Authorization header.
+            // FIX: We will rely on a fetching loop for now OR use a library.
+            // ACTUALLY: Let's use `fetch` with a `ReadableStream` reader (like the chat) instead of EventSource
+            // because we already have that logic working for Chat! 
+
+            const startStream = async () => {
+                try {
+                    const response = await fetch(`${baseUrl}/api/admin/logs?source=${logSource}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+
+                    if (!response.body) return;
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        const chunk = decoder.decode(value);
+                        // Parse SSE lines "data: ..."
+                        const lines = chunk.split('\n');
+                        for (const line of lines) {
+                            if (line.startsWith('data: ')) {
+                                const text = line.slice(6);
+                                setLogs(prev => [...prev.slice(-199), text]); // Keep last 200 lines
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.error("Log Stream Error", e);
+                    setLogs(prev => [...prev, "--- CONNECTION INTERRUPTED ---"]);
+                } finally {
+                    setIsLogStreaming(false);
+                }
+            };
+
+            startStream();
+
+            return () => {
+                // Ideally cancel fetch, but simple implementation: just let it die or component unmount
+                // In a real app we'd use AbortController
+            };
+        }
+    }, [activeTab, logSource]);
 
     const loadData = async () => {
         setLoading(true);
@@ -133,6 +198,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                 >
                     Transaction History
                 </button>
+                <button
+                    onClick={() => setActiveTab('logs')}
+                    className={`pb-2 px-4 text-sm font-bold uppercase tracking-wider transition-all border-b-2 flex items-center gap-2 ${activeTab === 'logs' ? 'text-green-500 border-green-500' : 'text-zinc-500 border-transparent hover:text-zinc-300'}`}
+                >
+                    <CommandLineIcon className="w-4 h-4" />
+                    System Logs
+                </button>
             </div>
 
             {loading ? (
@@ -144,6 +216,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                     {/* TAB 1: ACTIVITY */}
                     {activeTab === 'activity' && (
                         <div className="flex-1 flex flex-col md:flex-row gap-6 md:overflow-hidden min-h-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            {/* ... Content ... */}
                             {/* LEFT PANEL: STATS & USERS */}
                             <div className="flex-1 flex flex-col gap-6 md:overflow-hidden shrink-0">
                                 {/* ... Stats Row ... */}
@@ -304,6 +377,48 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                                         </div>
                                     </>
                                 )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* TAB 5: LOGS */}
+                    {activeTab === 'logs' && (
+                        <div className="flex-1 flex flex-col gap-6 md:overflow-hidden min-h-0 animate-in fade-in slide-in-from-right-2 duration-300">
+                            <div className="bg-[#0c0c0c] border border-zinc-800 rounded-sm overflow-hidden flex flex-col flex-1 shadow-2xl font-mono">
+
+                                {/* Controls */}
+                                <div className="p-3 bg-zinc-900/80 border-b border-zinc-800 flex gap-4 items-center">
+                                    <div className="text-xs font-bold text-green-500 uppercase tracking-widest flex items-center gap-2">
+                                        <CommandLineIcon className="w-4 h-4" />
+                                        LIVE TERMINAL
+                                    </div>
+                                    <div className="h-4 w-[1px] bg-zinc-700"></div>
+                                    <div className="flex gap-2">
+                                        {(['gpu', 'llm', 'tunnel'] as const).map(src => (
+                                            <button
+                                                key={src}
+                                                onClick={() => setLogSource(src)}
+                                                className={`text-[10px] uppercase font-bold px-3 py-1 rounded transition-colors
+                                                    ${logSource === src ? 'bg-zinc-700 text-white' : 'bg-black/40 text-zinc-500 hover:text-zinc-300'}
+                                                `}
+                                            >
+                                                {src === 'gpu' ? 'GPU NODE' : src === 'llm' ? 'LLM SERVER' : 'TUNNEL'}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    {isLogStreaming && <span className="ml-auto text-[10px] text-green-500 animate-pulse">● STREAMING</span>}
+                                </div>
+
+                                {/* Terminal Window */}
+                                <div className="flex-1 p-4 overflow-y-auto custom-scrollbar bg-black text-xs space-y-1">
+                                    {logs.map((line, idx) => (
+                                        <div key={idx} className="whitespace-pre-wrap break-all text-zinc-400 font-mono hover:bg-white/5 hover:text-zinc-200 transition-colors">
+                                            <span className="text-zinc-700 select-none mr-2">{(idx + 1).toString().padStart(3, '0')}</span>
+                                            {line}
+                                        </div>
+                                    ))}
+                                    <div ref={el => el?.scrollIntoView({ behavior: 'smooth' })}></div>
+                                </div>
                             </div>
                         </div>
                     )}

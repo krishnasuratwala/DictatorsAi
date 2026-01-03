@@ -3,6 +3,7 @@ from flask_cors import CORS
 from pymongo import MongoClient
 import os
 from dotenv import load_dotenv
+import subprocess # For log streaming
 
 load_dotenv() # Load variables from .env file
 
@@ -1705,6 +1706,52 @@ def proxy_audio(filename):
     except Exception as e:
         logger.error(f"❌ Proxy Error: {e}")
         return jsonify({"error": str(e)}), 500
+
+# --- LOG STREAMING ---
+@app.route('/api/admin/logs')
+@token_required
+def stream_logs(current_user):
+    if current_user.get('role') != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    source = request.args.get('source', 'gpu')
+    
+    # Whitelist allowable files (Security)
+    ALLOWED_LOGS = {
+        'gpu': 'gpu_node.log',
+        'llm': 'llama_server.log',
+        'tunnel': 'tunnel.log',
+        'middleware': 'middleware.log' # If we had one
+    }
+    
+    log_file = ALLOWED_LOGS.get(source)
+    if not log_file:
+        return jsonify({'error': 'Invalid log source'}), 400
+        
+    # Check if file exists
+    if not os.path.exists(log_file):
+        # Return a stream that just says "Log file not found" and closes
+        def not_found():
+            yield f"data: Log file '{log_file}' not found.\n\n"
+        return Response(stream_with_context(not_found()), content_type='text/event-stream')
+
+    def generate():
+        # Tail -f -n 50
+        # Start subprocess
+        proc = subprocess.Popen(['tail', '-f', '-n', '50', log_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            while True:
+                line = proc.stdout.readline()
+                if not line: break
+                yield f"data: {line.decode('utf-8', errors='replace').strip()}\n\n"
+        except GeneratorExit:
+            # Client disconnected
+            proc.terminate()
+        except Exception as e:
+            proc.terminate()
+            yield f"data: [STREAM ERROR] {str(e)}\n\n"
+
+    return Response(stream_with_context(generate()), content_type='text/event-stream')
 
 if __name__ == '__main__':
     app.run(port=5000, threaded=True)
