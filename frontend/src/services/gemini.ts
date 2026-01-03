@@ -39,6 +39,8 @@ const SYSTEM_PROMPTS: Record<string, string> = {
 export interface ChatResponse {
   text: string;
   coins?: number;
+  aiMsgId?: string; // ID from backend
+  userMsgId?: string; // ID from backend
   media?: {
     audio?: boolean | string;
     video?: boolean | string;
@@ -104,6 +106,8 @@ export async function chatWithDictator(
     let accumulatedText = "";
     let finalAudioUrl = undefined;
     let finalCoins = undefined;
+    let aiMsgId: string | undefined;
+    let userMsgId: string | undefined;
     let buffer = "";
 
     if (reader) {
@@ -137,6 +141,11 @@ export async function chatWithDictator(
                 finalAudioUrl = data.url;
                 if (onUpdate) onUpdate(accumulatedText, finalAudioUrl);
               }
+              else if (data.type === 'meta') {
+                // Backend synced IDs
+                aiMsgId = data.ai_msg_id;
+                userMsgId = data.user_msg_id;
+              }
               else if (data.error) {
                 console.error("Stream Error:", data.error);
               }
@@ -154,6 +163,8 @@ export async function chatWithDictator(
     return {
       text: accumulatedText,
       coins: finalCoins,
+      aiMsgId,
+      userMsgId,
       media: { audio_url: finalAudioUrl }
     };
 

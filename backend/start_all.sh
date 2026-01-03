@@ -10,7 +10,7 @@ export INTERNAL_SECRET="DICTATOR_INTERNAL_V1_SECURE"
 export LLM_URL="http://127.0.0.1:19000/v1/chat/completions"
 
 # Hugging Face Audio Storage (Private)
-export HF_TOKEN="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"
+export HF_TOKEN=""
 export HF_DATASET="krishnasuratwala/dictator-ai-audio"
 
 echo "🚀 Starting Dictator AI Fortress..."

@@ -622,15 +622,32 @@ const App: React.FC = () => {
       );
 
       // Final Update (Ensure consistency)
-      const finalMessages = [...updatedMessages, {
+      // FIX: Use backend-provided IDs if available to ensure Feedback works (Likes/Comments)
+      const finalAiId = response.aiMsgId || aiMsgId;
+
+      const finalAiMsg = {
         ...aiMsg,
+        id: finalAiId,
         parts: [{ text: response.text }],
         audioUrl: response.media?.audio_url
-      }];
+      };
+
+      // Also update User Message ID if provided by backend (for consistency)
+      let finalUserMsgs = updatedMessages;
+      if (response.userMsgId) {
+        // The user message is the last one in updatedMessages
+        const lastIndex = updatedMessages.length - 1;
+        if (lastIndex >= 0) {
+          finalUserMsgs = [
+            ...updatedMessages.slice(0, lastIndex),
+            { ...updatedMessages[lastIndex], id: response.userMsgId }
+          ];
+        }
+      }
 
       setSessions(prev => prev.map(session => {
         if (session.id === activeSessionId) {
-          return { ...session, messages: finalMessages };
+          return { ...session, messages: [...finalUserMsgs, finalAiMsg] };
         }
         return session;
       }));
@@ -721,11 +738,11 @@ const App: React.FC = () => {
 
     try {
       // We need to resend the existing feedback type (like/dislike) if it exists, or handle it in backend
-      // For simplicity, let's look up the message
+      // Lookup the message to get current state
       const msg = sessions.find(s => s.id === currentSessionId)?.messages.find(m => m.id === msgId);
-      if (msg && msg.feedback) {
-        await db.submitFeedback(currentSessionId, msgId, msg.feedback, text);
-      }
+
+      // FIX: Always submit text, even if feedback (like/dislike) is not set yet
+      await db.submitFeedback(currentSessionId, msgId, msg?.feedback, text);
     } catch (e) {
       console.error("Feedback text failed", e);
     }

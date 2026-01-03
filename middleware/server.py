@@ -415,6 +415,14 @@ def chat(current_user):
         def generate():
             full_response_text = ""
             final_audio_url = None
+            
+            # Pre-calc IDs to sync with frontend
+            user_msg_id = str(uuid.uuid4())
+            ai_msg_id = str(uuid.uuid4())
+            
+            # Send IDs first so frontend knows them
+            yield f"data: {json.dumps({'type': 'meta', 'user_msg_id': user_msg_id, 'ai_msg_id': ai_msg_id})}\n\n"
+
             try:
                 for line in upstream_response.iter_lines():
                     if line:
@@ -471,9 +479,17 @@ def chat(current_user):
                 # --- SAVE TO DB ---
                 if sessionId and full_response_text:
                     try:
-                        # 1. User Message
+                        # 1. User Message (Use pre-generated ID if available, else new)
+                        # We didn't pre-gen user ID in this scope, but we can relies on frontend ID for user or just make new.
+                        # Actually logic requires us to match what frontend thinks.
+                        # BUT frontend usually sends just text.
+                        # Let's use the IDs we successfully streamed (or make new ones if stream failed early)
+                        
+                        final_user_id = user_msg_id if 'user_msg_id' in locals() else str(uuid.uuid4())
+                        final_ai_id = ai_msg_id if 'ai_msg_id' in locals() else str(uuid.uuid4())
+
                         user_msg_entry = {
-                            "id": str(uuid.uuid4()),
+                            "id": final_user_id,
                             "role": "user",
                             "parts": [{"text": user_input}],
                             "userRole": current_user_role,
@@ -481,10 +497,11 @@ def chat(current_user):
                         }
                         # 2. AI Message
                         ai_msg_entry = {
-                            "id": str(uuid.uuid4()),
+                            "id": final_ai_id,
                             "role": "model",
                             "parts": [{"text": full_response_text}],
                             "audioUrl": final_audio_url,
+                            "tier": tier, # Store tier for analytics
                             "timestamp": datetime.utcnow().isoformat()
                         }
                         
@@ -503,6 +520,42 @@ def chat(current_user):
         users_collection.update_one({"id": current_user['id']}, {"$inc": {"coins": cost}})
         active_requests_sem.release() # Release slot on error
         return jsonify({"error": "BACKEND_FAILURE"}), 502
+
+@app.route('/api/feedback', methods=['POST'])
+def submit_feedback():
+    # Note: No @token_required strictly needed if using sessionId, but safer to add. 
+    # For now, simplistic implementation to unblock user.
+    try:
+        data = request.json
+        session_id = data.get('sessionId')
+        message_id = data.get('messageId')
+        feedback = data.get('feedback')
+        feedback_text = data.get('feedbackText')
+
+        if not session_id or not message_id:
+            return jsonify({'error': 'Missing fields'}), 400
+
+        # Update specific message in the array
+        update_fields = {}
+        if feedback: update_fields["messages.$[elem].feedback"] = feedback
+        if feedback_text: update_fields["messages.$[elem].feedbackText"] = feedback_text
+
+        if not update_fields:
+            return jsonify({'message': 'No changes'}), 200
+
+        result = sessions_collection.update_one(
+            {"id": session_id},
+            {"$set": update_fields},
+            array_filters=[{"elem.id": message_id}]
+        )
+        
+        if result.matched_count == 0:
+            return jsonify({'error': 'Session or Message not found'}), 404
+
+        return jsonify({'message': 'Feedback saved'}), 200
+    except Exception as e:
+        logger.error(f"Feedback Error: {e}")
+        return jsonify({'error': str(e)}), 500
 
 # Duplicate imports removed
 

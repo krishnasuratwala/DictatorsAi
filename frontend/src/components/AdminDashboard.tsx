@@ -354,15 +354,32 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                                                             <div key={idx} className={`flex ${msg.role === 'model' ? 'justify-end' : 'justify-start'}`}>
                                                                 <div className={`max-w-[80%] text-xs font-mono p-2 rounded-sm flex flex-col gap-1 ${msg.role === 'model' ? 'bg-zinc-900 text-zinc-400 border border-zinc-800' : 'bg-zinc-800/50 text-zinc-300'}`}>
                                                                     <div>{msg.parts[0].text}</div>
+
+                                                                    {/* Audio Playback */}
+                                                                    {msg.audioUrl && (
+                                                                        <div className="mt-2">
+                                                                            <audio
+                                                                                controls
+                                                                                src={msg.audioUrl}
+                                                                                className="w-full h-8 opacity-70 hover:opacity-100 transition-opacity"
+                                                                            />
+                                                                        </div>
+                                                                    )}
+
                                                                     {/* Feedback Display */}
                                                                     {msg.role === 'model' && (msg.feedback || msg.feedbackText) && (
-                                                                        <div className="mt-2 pt-2 border-t border-zinc-800 flex flex-col gap-1">
-                                                                            <div className="flex items-center gap-2">
-                                                                                {msg.feedback === 'like' && <div className="flex items-center gap-1 text-amber-600"><HandThumbUpIcon className="w-3 h-3" /><span className="text-[9px] uppercase">Commended</span></div>}
-                                                                                {msg.feedback === 'dislike' && <div className="flex items-center gap-1 text-red-600"><HandThumbDownIcon className="w-3 h-3" /><span className="text-[9px] uppercase">Reported</span></div>}
+                                                                        <div className="mt-3 pt-2 border-t border-zinc-800 flex flex-col gap-2">
+                                                                            <div className="flex items-center justify-between">
+                                                                                <div className="flex items-center gap-2">
+                                                                                    {msg.feedback === 'like' && <div className="flex items-center gap-1 text-emerald-500 font-bold uppercase tracking-wider text-[10px]"><HandThumbUpIcon className="w-4 h-4" /> Commended</div>}
+                                                                                    {msg.feedback === 'dislike' && <div className="flex items-center gap-1 text-red-500 font-bold uppercase tracking-wider text-[10px]"><HandThumbDownIcon className="w-4 h-4" /> Reported</div>}
+                                                                                </div>
                                                                             </div>
+
+                                                                            {/* Prominent Comment Box */}
                                                                             {msg.feedbackText && (
-                                                                                <div className="text-[11px] text-zinc-300 italic bg-zinc-800/80 border border-zinc-700 p-2 rounded mt-1 shadow-sm">
+                                                                                <div className="bg-zinc-800 border-l-2 border-white pl-3 py-2 pr-2 rounded-r text-zinc-200 text-xs font-sans leading-relaxed shadow-sm">
+                                                                                    <span className="text-[9px] text-zinc-500 uppercase font-bold block mb-1">Attached Comment:</span>
                                                                                     "{msg.feedbackText}"
                                                                                 </div>
                                                                             )}

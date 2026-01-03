@@ -260,7 +260,7 @@ export const db = {
   },
 
   // --- FEEDBACK ---
-  async submitFeedback(sessionId: string, messageId: string, feedback: 'like' | 'dislike', feedbackText?: string) {
+  async submitFeedback(sessionId: string, messageId: string, feedback?: 'like' | 'dislike', feedbackText?: string) {
     const token = localStorage.getItem('dictator_token');
     const response = await fetch(`${API_BASE}/api/feedback`, {
       method: 'POST',

@@ -72,9 +72,11 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
             }
         } catch (err: any) {
             setError(err.message || "AUTHENTICATION_FAILED");
+            setIsLoading(false); // Fix: Stop loading on error
         } finally {
+            // Only auto-stop loading for non-special views (login/signup/admin)
+            // 'forgot' and 'reset' handles their own loading state on success
             if (userView !== 'forgot' && userView !== 'reset') setIsLoading(false);
-            if (userView === 'reset' && error) setIsLoading(false); // Stop loading on error
         }
     };
 

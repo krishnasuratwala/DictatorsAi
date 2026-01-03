@@ -74,7 +74,7 @@ pip install "transformers==4.40.1" "accelerate>=0.26.0"
 ### A. Download XTTS Fine-Tuned Model
 ```bash
 # Login to Hugging Face (Optional if repo is public, but good practice)
-huggingface-cli login --token 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
+huggingface-cli login --token [your token]
 
 # Download Model to /workspace/xtts_model
 # Repo: krishnasuratwala/XTTS_HITLER_AUDIO
